@@ -3,6 +3,7 @@ import telebot
 from groq import Groq
 from flask import Flask
 import threading
+import time
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
@@ -13,8 +14,10 @@ if not BOT_TOKEN or not GROQ_API_KEY:
     exit()
 
 bot = telebot.TeleBot(BOT_TOKEN)
-client = Groq(api_key=GROQ_API_KEY)
+bot.delete_webhook(drop_pending_updates=True)
+time.sleep(1)
 
+client = Groq(api_key=GROQ_API_KEY)
 app = Flask(__name__)
 
 @app.route('/')
@@ -40,8 +43,8 @@ def reply(message):
         )
         bot.reply_to(message, completion.choices[0].message.content)
     except Exception as e:
-        print(f"Error: {e}")
-        bot.reply_to(message, "একটু সমস্যা হচ্ছে ভাই, আবার চেষ্টা করুন।")
+        print(f"Groq Error: {e}")
+        bot.reply_to(message, f"Groq Error: {e}")
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
@@ -49,4 +52,4 @@ def run_web():
 
 if __name__ == "__main__":
     threading.Thread(target=run_web, daemon=True).start()
-    bot.infinity_polling(none_stop=True)
+    bot.infinity_polling(none_stop=True, skip_pending=True)
