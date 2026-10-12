@@ -1,41 +1,36 @@
 import os
-import telebot
-import threading
-import time
-from flask import Flask
-import google.generativeai as genai
+import logging
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from groq import Groq
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+logging.basicConfig(level=logging.INFO)
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
-bot = telebot.TeleBot(BOT_TOKEN)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+MODEL = os.getenv("MODEL", "llama-3.3-70b-versatile")
 
-@bot.message_handler(func=lambda m: True)
-def handle_message(message):
+client = Groq(api_key=GROQ_API_KEY)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("আসসালামু আলাইকুম ভাই! আমি AUREX ONE, বলেন কিভাবে হেল্প করতে পারি?")
+
+async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        user_text = message.text
-        response = model.generate_content(user_text)
-        bot.reply_to(message, response.text)
+        user_msg = update.message.text
+        completion = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": user_msg}],
+            temperature=0.7,
+            max_tokens=1024
+        )
+        reply = completion.choices[0].message.content
+        await update.message.reply_text(reply)
     except Exception as e:
-        print(f"Error: {e}")
-        bot.reply_to(message, "একটু সমস্যা হচ্ছে ভাই, আবার চেষ্টা করেন।")
+        logging.error(f"Error: {e}")
+        await update.message.reply_text(f"ভাই Error: {e} - নতুন করে Key চেক করেন।")
 
-def run_bot():
-    while True:
-        try:
-            print("Bot polling started...")
-            bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)
-        except Exception as e:
-            print(f"Polling crashed: {e}, restarting...")
-            time.sleep(15)
-
-app = Flask(__name__)
-@app.route('/')
-def home():
-    return "AUREX-ONE Bot is Live!"
-
-if __name__ == "__main__":
-    threading.Thread(target=run_bot, daemon=True).start()
-    app.run(host="0.0.0.0", port=10000)
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
+app.run_polling()
