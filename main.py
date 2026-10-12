@@ -1,43 +1,41 @@
 import os
-import threading
-from flask import Flask
 import telebot
-from groq import Groq
+import threading
+import time
+from flask import Flask
+import google.generativeai as genai
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-MODEL_ID = os.environ.get("MODEL_ID", "llama-3.1-8b-instant")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 bot = telebot.TeleBot(BOT_TOKEN)
-client = Groq(api_key=GROQ_API_KEY)
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Bot is Live!"
 
 @bot.message_handler(func=lambda m: True)
 def handle_message(message):
     try:
         user_text = message.text
-        completion = client.chat.completions.create(
-            model=MODEL_ID,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant. Reply in the same language as user, default Bengali."},
-                {"role": "user", "content": user_text}
-            ]
-        )
-        bot.reply_to(message, completion.choices[0].message.content)
+        response = model.generate_content(user_text)
+        bot.reply_to(message, response.text)
     except Exception as e:
         print(f"Error: {e}")
-        bot.reply_to(message, f"Error: {e}")
+        bot.reply_to(message, "একটু সমস্যা হচ্ছে ভাই, আবার চেষ্টা করেন।")
 
 def run_bot():
-    bot.remove_webhook()
-    bot.infinity_polling(none_stop=True, skip_pending=True)
+    while True:
+        try:
+            print("Bot polling started...")
+            bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)
+        except Exception as e:
+            print(f"Polling crashed: {e}, restarting...")
+            time.sleep(15)
 
-threading.Thread(target=run_bot, daemon=True).start()
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "AUREX-ONE Bot is Live!"
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    threading.Thread(target=run_bot, daemon=True).start()
+    app.run(host="0.0.0.0", port=10000)
