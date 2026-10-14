@@ -15,10 +15,10 @@ flask_app = Flask(__name__)
 
 @flask_app.route('/')
 def home():
-    return "AUREX ONE Live!"
+    return "AUREX ONE is Live!"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("AUREX ONE Active! 😊")
+    await update.message.reply_text("AUREX ONE Active! Bolun ki help lagbe?")
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -29,15 +29,18 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(res.choices[0].message.content)
     except Exception as e:
-        logging.error(f"Error: {e}")
-        await update.message.reply_text(f"Error: {e}")
+        logging.error(e)
+        await update.message.reply_text("Somossa hoyeche, abar try korun!")
 
 def run_flask():
     flask_app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 
-if __name__ == '__main__':
-    Thread(target=run_flask, daemon=True).start()
+def run_bot():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
     app.run_polling()
+
+if __name__ == '__main__':
+    Thread(target=run_flask, daemon=True).start()
+    run_bot()
