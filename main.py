@@ -1,51 +1,43 @@
-import os
-import threading
+import os, logging
 from flask import Flask
+from threading import Thread
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from groq import Groq
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+logging.basicConfig(level=logging.INFO)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+MODEL_ID = os.getenv("MODEL_ID", "llama-3.3-70b-versatile")
 
-# Flask - Render কে Live দেখানোর জন্য
-app_flask = Flask(__name__)
-@app_flask.route('/')
+client = Groq(api_key=GROQ_API_KEY)
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
 def home():
-    return "AUREX ONE is Live!"
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app_flask.run(host='0.0.0.0', port=port)
-
-# Groq
-groq_client = Groq(api_key=GROQ_API_KEY)
+    return "AUREX ONE Live!"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("হ্যালো ভাই! আমি AUREX ONE 🚀 বলুন কি help লাগবে?")
+    await update.message.reply_text("AUREX ONE Active! 😊")
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
     try:
-        completion = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": "You are AUREX ONE, helpful brother, reply in Bangla."},
-                {"role": "user", "content": text}
-            ]
+        msg = update.message.text
+        res = client.chat.completions.create(
+            model=MODEL_ID,
+            messages=[{"role": "user", "content": msg}]
         )
-        await update.message.reply_text(completion.choices[0].message.content)
+        await update.message.reply_text(res.choices[0].message.content)
     except Exception as e:
+        logging.error(f"Error: {e}")
         await update.message.reply_text(f"Error: {e}")
 
-def run_bot():
+def run_flask():
+    flask_app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+
+if __name__ == '__main__':
+    Thread(target=run_flask, daemon=True).start()
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-    print("Clearing webhook...")
-    app.bot.delete_webhook(drop_pending_updates=True)
-    print("Polling started!")
     app.run_polling()
-
-if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()
-    run_bot()
